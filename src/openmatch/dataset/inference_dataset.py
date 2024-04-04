@@ -125,6 +125,7 @@ class InferenceDataset:
             else data_args.query_column_names if is_query else data_args.doc_column_names
         )
         all_markers = all_markers if all_markers is not None else data_args.all_markers
+    
         if data is not None:
             return StreamInMemoryDataset(
                 tokenizer=tokenizer,
@@ -143,19 +144,27 @@ class InferenceDataset:
                 filter_fn=filter_fn,
                 cache_dir=cache_dir,
             )
-        if data_files is not None:
-            data_files = [data_files] if isinstance(data_files, str) else data_files
+        if data_args.dataset is not None:
+            dataset_name = data_args.dataset
+            if data_args.version is not None:
+                dataset_name += "/" + data_args.version
+            data_files = [dataset_name]
+            cls_ = StreamHFDataset
         else:
-            data_files = [data_args.query_path] if is_query else [data_args.corpus_path]
-        ext = os.path.splitext(data_files[0])[1]
-        ext_to_cls = {
-            ".jsonl": StreamJsonlDataset if stream else MappingJsonlDataset,
-            ".tsv": StreamTsvDataset if stream else MappingTsvDataset,
-            ".txt": StreamTsvDataset if stream else MappingTsvDataset,
-        }
-        cls_ = ext_to_cls.get(ext, None) if ext != "" else StreamImageDataset
-        if cls_ is None:
-            raise ValueError("Unsupported dataset file extension {}".format(ext))
+            if data_files is not None:
+                data_files = [data_files] if isinstance(data_files, str) else data_files
+            else:
+                data_files = [data_args.query_path] if is_query else [data_args.corpus_path]
+            ext = os.path.splitext(data_files[0])[1]
+            ext_to_cls = {
+                ".jsonl": StreamJsonlDataset if stream else MappingJsonlDataset,
+                ".tsv": StreamTsvDataset if stream else MappingTsvDataset,
+                ".txt": StreamTsvDataset if stream else MappingTsvDataset,
+            }
+            cls_ = ext_to_cls.get(ext, None) if ext != "" else StreamImageDataset
+            if cls_ is None:
+                raise ValueError("Unsupported dataset file extension {}".format(ext))
+
         return cls_(
             tokenizer=tokenizer,
             processor=processor,
@@ -245,6 +254,21 @@ class MappingInferenceDataset(Dataset):
 
     def __len__(self):
         return len(self.dataset)
+
+
+class StreamHFDataset(StreamInferenceDataset, InferenceDataset):
+    def _prepare_data(self):
+        dataset_name, dataset_version = self.data_files[0].split("/")
+        self.dataset = load_dataset(
+            dataset_name,
+            dataset_version,
+            split="train",
+            streaming=True,
+            cache_dir=self.cache_dir,
+        )
+        for item in self.dataset:
+            self.all_columns = item.keys()
+            break     
 
 
 class StreamJsonlDataset(StreamInferenceDataset, InferenceDataset):

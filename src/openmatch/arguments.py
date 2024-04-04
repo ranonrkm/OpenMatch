@@ -81,6 +81,8 @@ class DataArguments:
     query_path: str = field(default=None, metadata={"help": "Path to query file"})
     corpus_path: str = field(default=None, metadata={"help": "Path to corpus file"})
     data_dir: str = field(default=None, metadata={"help": "Path to BEIR data directory"})
+    dataset: str = field(default=None, metadata={"help": "Dataset name"})
+    version: str = field(default=None, metadata={"help": "Dataset version"})
     train_n_passages: int = field(default=8)
     positive_passage_no_shuffle: bool = field(
         default=False, metadata={"help": "always use the first positive passage"}
